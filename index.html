@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cómo aprende una red neuronal de grafos</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1c1c1c;--soft:#5b5b5b;--line:#ddd8ce;--accent:#0f766e;--c0:#2563eb;--c1:#ea580c;--unk:#9aa0a6;--pos:37,99,235;--neg:234,88,12;--code:#efece5;--ok:#15803d;--warn:#b91c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#131417;--card:#1d1f25;--ink:#ececec;--soft:#a8a8a8;--line:#343741;--accent:#2dd4bf;--c0:#6ea0ff;--c1:#ff9a57;--unk:#6b7280;--pos:110,160,255;--neg:255,154,87;--code:#262830;--ok:#4ade80;--warn:#f87171}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 16px}
+.toprow{max-width:1500px;margin:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.toprow h1{font-size:18px;margin:0;margin-right:auto}
+.chips{max-width:1500px;margin:6px auto 0;display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{flex:none;font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--soft);cursor:pointer;white-space:nowrap}
+.chip b{color:var(--accent);margin-right:4px}
+.chip[aria-current=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip[aria-current=true] b{color:#fff}
+.board{max-width:1500px;margin:auto;padding:16px;display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:16px;align-items:start}
+@media (max-width:980px){.board{grid-template-columns:minmax(0,1fr)}}
+.stage{position:sticky;top:92px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+@media (max-width:980px){.stage{position:static}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 22px 22px;display:none;min-height:60vh}
+.panel.on{display:block}
+.panel h2{font-size:26px;margin:14px 0 4px}
+.panel h2 .n{color:var(--accent);margin-right:10px}
+.panel h3{font-size:17px;margin:22px 0 4px}
+.panel p,.panel li{max-width:720px}
+.lead{font-size:18px;color:var(--soft)}
+.key{border-left:4px solid var(--accent);background:var(--bg);padding:9px 14px;margin:14px 0;border-radius:0 8px 8px 0;max-width:720px}
+.look{font-size:14px;color:var(--accent);font-weight:600;margin:4px 0 0}
+.eq{overflow-x:auto;padding:2px 0}
+table.cmp{border-collapse:collapse;width:100%;font-size:14.5px}
+table.cmp th,table.cmp td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+table.cmp th{color:var(--soft);font-weight:600}
+table.cmp tr.sel td{background:var(--bg);font-weight:600}
+.controls{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:8px 0}
+button{font:inherit;font-size:14px;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:hover{border-color:var(--accent)}
+select,input[type=range]{font:inherit;font-size:14px;accent-color:var(--accent)}
+select{padding:4px 6px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+label{font-size:14px;color:var(--soft)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.stat b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--soft);line-height:1.2;display:block}
+svg{max-width:100%;height:auto;display:block}
+svg text{font-family:inherit;fill:var(--ink)}
+.node{cursor:pointer}
+.legend{font-size:13px;color:var(--soft);min-height:38px}
+.ficha{font-size:14px;border-top:1px solid var(--line);margin-top:8px;padding-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.mats{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin:8px 0;overflow-x:auto}
+.mat{font-size:12.5px}
+.mat .cap{font-weight:600;margin-bottom:3px}
+.mat .cap small{font-weight:400;color:var(--soft)}
+.mat table{border-collapse:collapse;font-variant-numeric:tabular-nums}
+.mat td,.mat th{padding:2px 5px;text-align:right;border:1px solid var(--line);min-width:40px}
+.mat th{color:var(--soft);font-weight:500;text-align:center;min-width:0}
+.mat tr.sel td,.mat tr.sel th{outline:2px solid var(--accent);outline-offset:-2px}
+.mat tr.lab th{color:var(--accent);font-weight:700}
+.steps{counter-reset:st}
+.step{counter-increment:st;position:relative;padding-left:40px;margin:18px 0}
+.step::before{content:counter(st);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
+pre{background:var(--code);padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13.5px;line-height:1.5}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.92em}
+pre code{background:none;padding:0}
+details{border:1px solid var(--line);border-radius:8px;padding:9px 13px;margin:8px 0;max-width:720px}
+summary{cursor:pointer;font-weight:600}
+.mono{font-variant-numeric:tabular-nums;font-size:14px;overflow-x:auto;background:var(--bg);border-radius:8px;padding:9px 12px;margin:8px 0}
+.small{font-size:13.5px;color:var(--soft)}
+.warn{color:var(--warn);font-weight:600}
+.navfoot{display:flex;justify-content:space-between;margin-top:26px}
+</style>
+</head>
+<body>
+<header class="top">
+<div class="toprow"><h1>Cómo aprende una red neuronal de grafos</h1><button id="prev">← Anterior</button><button id="next" class="primary">Siguiente →</button></div>
+<div class="chips" id="chips"></div>
+</header>
+
+<div class="board">
+<aside class="stage">
+<svg id="g" viewBox="0 0 520 330" role="img" aria-label="Red de cuentas y transferencias"></svg>
+<div class="legend" id="legend"></div>
+<div id="trainUI">
+<div class="ficha"><span id="ficha"></span><button id="bLabel"></button></div>
+<div class="controls">
+<button class="primary" id="bStep">Un paso</button><button id="bRun">Entrenar</button><button id="bReset">Reiniciar pesos</button>
+<label>Modelo <select id="selMode"><option value="gcn">Con grafo (GCN)</option><option value="mlp">Sin grafo (solo la tabla)</option></select></label>
+<label>η = <b id="lrVal">0.20</b> <input type="range" id="lr" min="0.02" max="4" step="0.02" value="0.2"></label>
+</div>
+<div class="stats">
+<div class="stat"><b id="sEpoch">0</b><span>época</span></div>
+<div class="stat"><b id="sLoss">–</b><span>pérdida</span></div>
+<div class="stat"><b id="sAccL">–</b><span>aciertos, revisadas</span></div>
+<div class="stat"><b id="sAccU">–</b><span>aciertos, sin revisar</span></div>
+</div>
+<svg id="curve" viewBox="0 0 440 110" role="img" aria-label="Curva de pérdida"></svg>
+<div class="small" id="msg"></div>
+</div>
+<div id="bneckUI" hidden>
+<div class="controls">
+<label>Orígenes K = <b id="bnKv">4</b> <input type="range" id="bnK" min="3" max="5" step="1" value="4"></label>
+<label>Intermedias por capa M = <b id="bnMv">3</b> <input type="range" id="bnM" min="2" max="4" step="1" value="3"></label>
+<label>Capas d = <b id="bnDv">2</b> <input type="range" id="bnD" min="1" max="3" step="1" value="2"></label>
+</div>
+<div class="controls"><button class="primary" id="bnShuffle">Barajar referencias</button><button id="bnNewQ">Otra consulta</button></div>
+<div class="small" id="bnMsg"></div>
+</div>
+</aside>
+
+<main>
+<section class="panel" data-t="El problema" data-view="problem">
+<h2><span class="n">1</span>Ocho cuentas y tiempo para revisar pocas</h2>
+<p class="lead">Un banco vigila ocho cuentas. Su equipo de investigación solo ha alcanzado a revisar dos. Revisar una cuenta toma días. ¿En qué orden conviene revisar las otras seis?</p>
+<p class="look">En el tablero: cada círculo es una cuenta y cada línea indica que hubo transferencias entre dos cuentas. Las grises no se han revisado.</p>
+<p>Lo que se sabe de cada cuenta son dos números, calculados de su historial:</p>
+<ul>
+<li><b>Regularidad</b>: qué tan repetitivos son sus montos y fechas. 1 es una cuenta de nómina con pagos fijos.</li>
+<li><b>Prisa</b>: qué parte del dinero sale en menos de 24 horas de haber entrado. 1 es una cuenta de paso.</li>
+</ul>
+<div id="tblProblem"></div>
+<p>La cuenta 0 se revisó y es legítima. La cuenta 7 se revisó y hace parte de un anillo de fraude: cuentas de paso que se reparten el dinero entre ellas.</p>
+<div class="key">Una red neuronal de grafos es un clasificador que, para decidir sobre una cuenta, mira también las cuentas con las que esa cuenta se relaciona. El resto de la página explica cómo se entrena, paso a paso, con estos mismos ocho nodos.</div>
+<p class="small">Los datos son inventados para la explicación. Para simplificar, las transferencias no tienen dirección ni monto.</p>
+</section>
+
+<section class="panel" data-t="Tabla o grafo" data-view="pred">
+<h2><span class="n">2</span>Por qué no basta la tabla</h2>
+<p>Con la tabla sola, lo natural es entrenar un clasificador con las dos cuentas revisadas y aplicarlo a las demás. Pruébalo.</p>
+<p class="look">En el tablero: elige "Sin grafo" y pulsa "Entrenar". Luego elige "Con grafo" y entrena otra vez.</p>
+<p>Como el ejemplo es inventado, aquí sí conocemos la verdad de las ocho cuentas: es el color del borde. El relleno y el número son lo que predice el modelo (probabilidad de fraude). Una ✕ marca una predicción equivocada.</p>
+<ul>
+<li><b>Sin grafo</b>, la pérdida baja casi a cero y aun así quedan mal dos cuentas. La 2 es una tienda legítima que paga a sus proveedores el mismo día: por sus números parece cuenta de paso. La 5 es del anillo, pero imita a una cuenta de nómina.</li>
+<li><b>Con grafo</b>, las dos quedan bien. La 2 solo transfiere con cuentas legítimas. La 5 solo transfiere con cuentas del anillo.</li>
+</ul>
+<div class="card"><table class="cmp">
+<tr><th></th><th>Tabla (regresión, árboles, MLP)</th><th>Grafo (GNN, clasificación de nodos)</th></tr>
+<tr><td><b>Ejemplo</b></td><td>una fila</td><td>un nodo (una cuenta)</td></tr>
+<tr><td><b>Entrada</b></td><td>la fila \(x_i\)</td><td>todas las filas \(X\) y las conexiones \(A\)</td></tr>
+<tr><td><b>Supuesto</b></td><td>filas independientes</td><td>los vecinos dicen algo sobre el nodo</td></tr>
+<tr><td><b>Lote</b></td><td>un subconjunto de filas</td><td>el grafo completo (si es pequeño)</td></tr>
+<tr><td><b>Partición</b></td><td>tres tablas</td><td>tres <i>máscaras</i> sobre los nodos del mismo grafo</td></tr>
+<tr><td><b>Filas sin etiqueta</b></td><td>no se usan</td><td>sus números sí se usan; su etiqueta no existe</td></tr>
+</table></div>
+<div class="key">El grafo ayuda cuando los nodos conectados tienden a ser de la misma clase. Aquí se cumple: los anillos de fraude transfieren entre sí. Si las conexiones no dijeran nada sobre la clase, usarlas no ayudaría y podría estorbar.</div>
+</section>
+
+<section class="panel" data-t="Los datos" data-view="data">
+<h2><span class="n">3</span>El problema escrito como matrices</h2>
+<p class="look">En el tablero: junto a cada cuenta están sus dos números (regularidad, prisa). Haz clic en una cuenta para resaltar su fila en las matrices.</p>
+<ul>
+<li><b>Adyacencia</b> \(A\in\{0,1\}^{n\times n}\): \(A_{uv}=1\) si hubo transferencias entre \(u\) y \(v\). Aquí \(n=8\).</li>
+<li><b>Características</b> \(X\in\mathbb{R}^{n\times d}\): una fila por cuenta. Aquí \(d=2\).</li>
+<li><b>Etiquetas</b> \(y\): 0 legítima, 1 fraude. Solo se conocen las de las cuentas revisadas.</li>
+<li><b>Máscara de entrenamiento</b> \(\mathcal{M}\): el conjunto de cuentas revisadas (★).</li>
+</ul>
+<p>La red no usa \(A\) directamente. A cada nodo le agrega un lazo consigo mismo, para que no olvide sus propios números, y normaliza por los grados, para que una cuenta con muchas conexiones no produzca sumas más grandes que una con pocas:</p>
+<div class="eq">$$\hat A=\tilde D^{-1/2}(A+I)\,\tilde D^{-1/2},\qquad \tilde D_{vv}=1+\deg(v),\qquad \hat A_{vu}=\frac{(A+I)_{vu}}{\sqrt{\tilde D_{vv}\tilde D_{uu}}}$$</div>
+<div class="mats" id="mData"></div>
+<p class="small">\(\hat A\) se calcula una vez, antes de entrenar, y no cambia. La fila \(v\) dice cuánto pesa cada cuenta en lo que recibe la cuenta \(v\).</p>
+</section>
+
+<section class="panel" data-t="El modelo" data-view="pred">
+<h2><span class="n">4</span>Qué se aprende y qué no</h2>
+<p>El modelo es una GCN de dos capas:</p>
+<div class="eq">$$H^{(1)}=\tanh\big(\hat A\,X\,W^{(1)}\big),\qquad Z=\hat A\,H^{(1)}\,W^{(2)},\qquad P=\mathrm{softmax}(Z)$$</div>
+<p>Los únicos parámetros son \(W^{(1)}\in\mathbb{R}^{d\times h}\) y \(W^{(2)}\in\mathbb{R}^{h\times c}\). Con \(d=2\) características, \(h=3\) unidades ocultas y \(c=2\) clases son \(2\cdot3+3\cdot2=12\) números. Estos son sus valores ahora:</p>
+<div class="mats" id="mW0"></div>
+<p class="look">En el tablero: pulsa "Un paso" y mira cómo cambian. "Reiniciar pesos" sortea otros valores iniciales.</p>
+<div class="key">El número de parámetros <b>no depende del número de cuentas</b>. Con ocho o con ocho millones, esta red tiene doce pesos. No hay un peso por cuenta ni un peso por transferencia. El grafo no se aprende: decide quién le pasa información a quién.</div>
+<p class="small">La no linealidad es \(\tanh\). Con ReLU, la más usada, cambia una sola línea del paso hacia atrás. Para no cargar las fórmulas no hay sesgos; con sesgo cada capa suma un vector \(b\) y el razonamiento es el mismo.</p>
+</section>
+
+<section class="panel" data-t="Hacia adelante" data-view="forward">
+<h2><span class="n">5</span>Paso hacia adelante</h2>
+<p>Cada capa hace dos cosas: <b>agregar</b> (cada cuenta promedia sus números con los de sus vecinas) y <b>transformar</b> (multiplicar por \(W\) y aplicar la no linealidad).</p>
+<div class="eq">$$H^{(\ell+1)}=\sigma\big(\hat A\,H^{(\ell)}\,W^{(\ell+1)}\big)\quad\Longleftrightarrow\quad h_v^{(\ell+1)}=\sigma\Big(\Big(\sum_{u\in N(v)\cup\{v\}}\hat A_{vu}\,h_u^{(\ell)}\Big)W^{(\ell+1)}\Big)$$</div>
+<p class="look">En el tablero: haz clic en una cuenta. Las líneas gruesas son las que le pasan información, con su peso \(\hat A_{vu}\).</p>
+<div class="mono" id="nodeSum"></div>
+<div class="steps">
+<div class="step"><b>Agregar.</b> \(\hat A X\): cada fila es el promedio ponderado del vecindario.<div class="mats" id="mF1"></div></div>
+<div class="step"><b>Transformar y activar.</b> \(H^{(1)}=\tanh(\hat A X\,W^{(1)})\). Cada entrada queda entre −1 y 1.<div class="mats" id="mF2"></div></div>
+<div class="step"><b>Segunda capa.</b> Se agrega otra vez y se multiplica por \(W^{(2)}\): \(Z=\hat A H^{(1)}W^{(2)}\). Cada fila de \(Z\) tiene un número por clase (los <i>logits</i>).<div class="mats" id="mF3"></div></div>
+<div class="step"><b>Softmax.</b> \(P_{vk}=\dfrac{e^{Z_{vk}}}{\sum_j e^{Z_{vj}}}\). Cada fila suma 1. La segunda columna es la probabilidad de fraude.<div class="mats" id="mF4"></div></div>
+</div>
+<div class="key">El paso hacia adelante se hace sobre <b>todas</b> las cuentas, revisadas o no. Después de dos capas, la fila de una cuenta mezcla información de las cuentas que están a dos transferencias o menos.</div>
+</section>
+
+<section class="panel" data-t="La pérdida" data-view="loss">
+<h2><span class="n">6</span>La pérdida solo mira las cuentas revisadas</h2>
+<p>Entropía cruzada, promediada sobre las \(m=|\mathcal{M}|\) cuentas con etiqueta:</p>
+<div class="eq">$$\mathcal{L}=-\frac{1}{m}\sum_{v\in\mathcal{M}}\log P_{v,\,y_v}$$</div>
+<p>\(P_{v,y_v}\) es la probabilidad que el modelo le dio a la clase correcta de la cuenta \(v\). Si es 1, esa cuenta aporta 0. Si es cercana a 0, aporta mucho.</p>
+<p class="look">En el tablero: solo las cuentas con ★ entran a la suma. Quítale la etiqueta a las dos (botón bajo el grafo) y mira qué pasa.</p>
+<div class="mono" id="lossTerms"></div>
+<div class="key">Esto es aprendizaje <b>semisupervisado</b>. Las cuentas sin revisar no aparecen en la suma, pero sus números sí entraron al cálculo de \(P_v\) de las revisadas, a través de \(\hat A\).</div>
+</section>
+
+<section class="panel" data-t="Hacia atrás" data-view="grad">
+<h2><span class="n">7</span>Paso hacia atrás</h2>
+<p>Hay que calcular \(\partial\mathcal{L}/\partial W^{(2)}\) y \(\partial\mathcal{L}/\partial W^{(1)}\) con la regla de la cadena, de la salida hacia la entrada. \(Y\) es la matriz de etiquetas en <i>one-hot</i>, \(M\) la matriz diagonal con 1 en las cuentas revisadas, \(\odot\) el producto entrada por entrada.</p>
+<p class="look">En el tablero: el halo de cada cuenta es el tamaño del gradiente que le llega a su fila de \(H^{(1)}\). Compara "Con grafo" y "Sin grafo".</p>
+<div class="steps">
+<div class="step"><b>Gradiente en los logits.</b> Para softmax con entropía cruzada es "lo predicho menos lo correcto":
+<div class="eq">$$G=\frac{\partial\mathcal{L}}{\partial Z}=\frac{1}{m}\,M\,(P-Y)$$</div>
+Las filas de las cuentas sin revisar son cero.<div class="mats" id="mB1"></div></div>
+<div class="step"><b>Gradiente de \(W^{(2)}\).</b> \(Z=(\hat A H^{(1)})W^{(2)}\) es lineal en \(W^{(2)}\):
+<div class="eq">$$\frac{\partial\mathcal{L}}{\partial W^{(2)}}=\big(\hat A H^{(1)}\big)^{\!\top}G$$</div><div class="mats" id="mB2"></div></div>
+<div class="step"><b>Gradiente que llega a la capa oculta.</b> El error viaja hacia atrás por las mismas conexiones, con \(\hat A^{\top}\):
+<div class="eq">$$\frac{\partial\mathcal{L}}{\partial H^{(1)}}=\hat A^{\top}G\,W^{(2)\top}$$</div>
+Con grafo, aparecen filas distintas de cero en cuentas <b>sin revisar</b>: son vecinas de las revisadas.<div class="mats" id="mB3"></div></div>
+<div class="step"><b>A través de la no linealidad.</b> Con \(Z^{(1)}=\hat A XW^{(1)}\) y \(H^{(1)}=\tanh(Z^{(1)})\), la derivada de \(\tanh\) es \(1-\tanh^2\):
+<div class="eq">$$\frac{\partial\mathcal{L}}{\partial Z^{(1)}}=\frac{\partial\mathcal{L}}{\partial H^{(1)}}\odot\big(1-H^{(1)}\odot H^{(1)}\big)$$</div>
+<span class="small">Con ReLU este factor sería \(\mathbf{1}[Z^{(1)}>0]\).</span></div>
+<div class="step"><b>Gradiente de \(W^{(1)}\).</b>
+<div class="eq">$$\frac{\partial\mathcal{L}}{\partial W^{(1)}}=\big(\hat A X\big)^{\!\top}\frac{\partial\mathcal{L}}{\partial Z^{(1)}}$$</div><div class="mats" id="mB4"></div></div>
+</div>
+<div class="key">La única diferencia con el <i>backpropagation</i> de un MLP son los productos por \(\hat A\) y \(\hat A^{\top}\). Si \(\hat A\) se reemplaza por la identidad, estas son exactamente las fórmulas de un MLP de dos capas. Eso hace la opción "Sin grafo".</div>
+<h3>Comprobar la fórmula</h3>
+<p>Un gradiente se verifica moviendo un peso un poquito y midiendo cuánto cambia la pérdida: \(\dfrac{\mathcal{L}(w+\varepsilon)-\mathcal{L}(w-\varepsilon)}{2\varepsilon}\).</p>
+<div class="controls"><button id="bCheck">Comprobar con un peso al azar</button></div><div class="mono" id="checkOut">Sin comprobar todavía.</div>
+</section>
+
+<section class="panel" data-t="Actualizar" data-view="pred">
+<h2><span class="n">8</span>Actualizar, repetir y entregar</h2>
+<p>Descenso de gradiente con tasa de aprendizaje \(\eta\):</p>
+<div class="eq">$$W^{(1)}\leftarrow W^{(1)}-\eta\,\frac{\partial\mathcal{L}}{\partial W^{(1)}},\qquad W^{(2)}\leftarrow W^{(2)}-\eta\,\frac{\partial\mathcal{L}}{\partial W^{(2)}}$$</div>
+<div class="mats" id="mW"></div>
+<p>Una <b>época</b> es: paso hacia adelante sobre todo el grafo, pérdida en las cuentas revisadas, paso hacia atrás, una actualización.</p>
+<h3>Lo que recibe el equipo de investigación</h3>
+<p>El resultado útil no es la pérdida sino el orden de revisión: las cuentas sin revisar, de mayor a menor probabilidad de fraude.</p>
+<div id="ranking"></div>
+<h3>El mismo ciclo en PyTorch Geometric</h3>
+<pre><code>for epoch in range(200):
+    model.train()
+    optimizer.zero_grad()
+    out = model(data.x, data.edge_index)            # hacia adelante: TODAS las cuentas
+    loss = F.cross_entropy(out[data.train_mask],    # pérdida: SOLO las revisadas
+                           data.y[data.train_mask])
+    loss.backward()                                 # hacia atrás: lo hace autograd
+    optimizer.step()                                # actualización de W
+
+model.eval()
+prob_fraude = model(data.x, data.edge_index).softmax(dim=1)[:, 1]</code></pre>
+<p><code>out[data.train_mask]</code> es la matriz \(M\) del panel 7. Lo demás es el ciclo de cualquier red.</p>
+<h3>Qué probar</h3>
+<ol>
+<li>Cambia \(\eta\), pulsa "Reiniciar pesos" y compara cuántas épocas tarda la pérdida en bajar.</li>
+<li>Dale etiqueta a la cuenta 5 y entrena "Sin grafo". Mira si se arregla la cuenta 2.</li>
+<li>Deja con etiqueta solo la cuenta 7. Mira qué predice el modelo para todas y por qué.</li>
+</ol>
+</section>
+
+<section class="panel" data-t="Capas y alcance" data-view="hops">
+<h2><span class="n">9</span>Cuántas capas</h2>
+<p>Cada capa agrega una vez. Con \(k\) capas, la predicción de una cuenta depende de las cuentas que están a \(k\) transferencias o menos: su <b>campo receptivo</b>.</p>
+<div class="controls"><label>Capas k = <b id="kVal">2</b> <input type="range" id="kHops" min="0" max="5" step="1" value="2"></label></div>
+<p class="look">En el tablero: haz clic en una cuenta para ponerla en el centro. El número es su distancia al centro.</p>
+<div class="mono" id="hopsOut"></div>
+<p>Dos problemas aparecen al aumentar \(k\):</p>
+<ul>
+<li><b>Sobresuavizado</b> (<i>over-smoothing</i>). Promediar muchas veces hace que las filas de todas las cuentas se parezcan, y las clases ya no se pueden separar.</li>
+<li><b>Sobrecompresión</b> (<i>over-squashing</i>). El número de caminos que llegan a una cuenta crece muy rápido con \(k\), pero todo debe caber en un vector de ancho fijo \(h\). La información lejana se pierde.</li>
+</ul>
+<p>Los modelos con atención, como GAT, cambian quién le habla a quién y con qué peso, pero <b>se entrenan igual</b>: los pesos de atención salen de matrices que se aprenden con el ciclo de los paneles 5 a 8. Los dos paneles que siguen muestran un caso donde la sobrecompresión hace fallar al paso de mensajes, y una salida.</p>
+</section>
+
+<section class="panel" data-t="Lo lejano" data-view="bneckmp">
+<h2><span class="n">10</span>Cuando la respuesta está lejos</h2>
+<p class="lead">En las ocho cuentas bastan dos capas, porque la respuesta está en los vecinos. Hay problemas donde no.</p>
+<p>Un esquema de <b>estratificación</b>: el dinero sale de \(K\) cuentas de origen, pasa por \(d\) capas de \(M\) cuentas intermedias que se lo reparten todo entre todas, y llega a una cuenta destino. Cada origen usó una referencia de pago distinta.</p>
+<p><b>La pregunta:</b> al destino llegó dinero con la referencia <b id="bnQ1"></b>. ¿Cuál cuenta de origen la usó?</p>
+<p class="look">En el tablero: cambia K, M y d. Pulsa "Barajar referencias" varias veces y mira qué cambia y qué no.</p>
+<h3>Lo que entrega el paso de mensajes</h3>
+<p>Cada origen envía su vector: un 1 en la posición de su referencia y un 1 en la posición de su identidad. Cada cuenta intermedia de la primera capa recibe la <b>suma</b> de lo que envían todos los orígenes.</p>
+<div id="bnTable"></div>
+<div class="key">La suma es la misma para cualquier reparto de referencias. Las cuentas intermedias no tienen datos propios y todas reciben lo mismo, así que lo que llega al destino no depende de quién usó cuál referencia. Con agregación lineal y una capa por salto (GCN, GIN), la red no puede hacerlo mejor que adivinar: acierta \(1/K\) de las veces, para cualquier ancho y cualquier profundidad. Esto está demostrado, no solo medido.</div>
+<h3>Cuánto hay que comprimir</h3>
+<p>La información viaja por muchos caminos y debe caber en un vector de ancho \(w\). El índice de severidad compara las dos cosas, en bits:</p>
+<div class="eq">$$\Psi=\log_2(\text{caminos que llegan al destino})-\log_2 w=\log_2\!\big(K\,M^{d}\big)-\log_2 w$$</div>
+<div class="controls"><label>Ancho w <select id="bnW"><option>8</option><option selected>16</option><option>32</option><option>64</option></select></label></div>
+<div class="mono" id="bnPsi"></div>
+<p class="small">Los caminos se cuentan con \(k\) productos de un vector de unos por la matriz de adyacencia, sin entrenar nada. En los experimentos del artículo citado en el panel siguiente, la ventaja apareció a partir de unos 2 bits.</p>
+</section>
+
+<section class="panel" data-t="Walk Attention" data-view="bneckwa">
+<h2><span class="n">11</span>Atender directamente a lo que está a k saltos</h2>
+<p>Walk Attention cambia una sola cosa del modelo: <b>quién le habla a quién</b>. En lugar de pasar por las capas intermedias, cada nodo atiende directamente a los nodos unidos a él por un camino de longitud \(k\).</p>
+<ul>
+<li><b>El soporte lo da el grafo.</b> Los pares que pueden interactuar en el rango \(k\) son las entradas distintas de cero de \(A^k\). Es el álgebra de caminos del grafo la que dice cuáles son, y no se aprende:
+<div class="eq">$$\mathcal{S}_k=\{(j,i):(A^k)_{ij}>0\}$$</div></li>
+<li><b>Los pesos se aprenden.</b> Sobre ese soporte se calcula una atención con consultas, llaves y valores:
+<div class="eq">$$\alpha_{ji}=\operatorname*{softmax}_{i:(j,i)\in\mathcal{S}_k}\frac{\langle Q_j,K_i\rangle}{\sqrt{C}},\qquad z_j=\sum_{i:(j,i)\in\mathcal{S}_k}\alpha_{ji}\,V_i$$</div></li>
+</ul>
+<p class="look">En el tablero: en el rango k = d + 1 el soporte del destino son exactamente los K orígenes. El grosor de cada arco es su peso de atención.</p>
+<p>La consulta del destino es la referencia <b id="bnQ2"></b>. La llave de cada origen es su referencia. El puntaje de un origen es \(\beta\) si su referencia coincide y 0 si no:</p>
+<div class="controls"><label>Nitidez β = <b id="bnBetaVal">4.0</b> <input type="range" id="bnBeta" min="0" max="8" step="0.5" value="4"></label></div>
+<div id="bnWA"></div>
+<div class="key">Con cualquier \(\beta>0\) el mayor peso cae en el origen correcto, para todo \(K\), \(M\) y \(d\). Con \(\beta=0\) todos pesan igual: eso es agregar por caminos con pesos fijos, que cruza las capas en un paso pero no puede elegir.</div>
+<p>Se entrena con el mismo ciclo de los paneles 5 a 8. Las matrices que producen \(Q\), \(K\) y \(V\) se actualizan por descenso de gradiente, y el gradiente pasa también por el softmax. El soporte queda fijo.</p>
+<h3>Qué tan fuerte es la evidencia</h3>
+<div class="card"><table class="cmp">
+<tr><th>Prueba</th><th>GCN</th><th>GAT</th><th>Walk Attention</th><th>Lectura</th></tr>
+<tr><td>Este esquema, \(K=5\), \(M=4\), \(d=2\) (azar 0,20)</td><td>0,21</td><td>0,45</td><td>1,00</td><td>caso construido para que el paso de mensajes falle</td></tr>
+<tr><td>Transmitir una etiqueta al lado opuesto de un anillo de 18 nodos (azar 0,20)</td><td>0,53</td><td>0,29</td><td>1,00</td><td>prueba externa, también sintética</td></tr>
+<tr><td>Moléculas reales (Peptides-func, precisión media)</td><td>0,492</td><td>0,526</td><td>0,526</td><td>empate: ahí la compresión es leve</td></tr>
+<tr><td>Red real de citación (cit-HepPh, impacto temprano)</td><td colspan="3">Walk Attention mejor en 4 de 5 objetivos, +0,009 sobre GAT</td><td>ventaja pequeña pero consistente</td></tr>
+</table></div>
+<p>La ventaja es grande cuando la tarea depende de información lejana que llega por muchos caminos, y nula cuando no. En el ejemplo de las ocho cuentas no aporta nada: la GCN ya lo resuelve. Dos límites: en grafos densos el soporte de rango \(k\) puede crecer mucho y hay que truncarlo, y falta compararlo con recableado del grafo y con Transformers de grafos.</p>
+<p class="small">Fuente: C. I. Zainea Maya y A. Moreno Cañadas, <a href="https://doi.org/10.1007/978-3-032-43214-8_6">Path algebras of quivers as a sparse multi-hop attention for mitigating over-squashing in GNNs</a> (2026). Código: <a href="https://github.com/Izainea/path-algebra-gnn">github.com/Izainea/path-algebra-gnn</a>.</p>
+</section>
+
+<section class="panel" data-t="Dudas" data-view="pred">
+<h2><span class="n">12</span>Dudas frecuentes</h2>
+<details><summary>¿Las cuentas sin etiqueta se usan o no?</summary><p>Sí en el paso hacia adelante: sus números se mezclan con los de sus vecinas. No en la pérdida: su fila en \(G\) es cero. Su etiqueta nunca se usa, porque no se conoce.</p></details>
+<details><summary>¿Hay un peso por nodo o por arista?</summary><p>No. Las matrices \(W\) se comparten entre todos los nodos, como el filtro de una convolución se comparte entre todos los píxeles. \(\hat A\) no es un parámetro: se calcula del grafo y queda fija.</p></details>
+<details><summary>Si solo hay un grafo, ¿dónde están los lotes?</summary><p>En grafos pequeños el lote es el grafo completo: una actualización por época. En grafos grandes se muestrean vecindarios (por ejemplo con <code>NeighborLoader</code>): cada lote es un grupo de nodos con una muestra de sus vecinos a \(k\) saltos, y hay muchas actualizaciones por época.</p></details>
+<details><summary>¿Cómo se parte en entrenamiento, validación y prueba?</summary><p>Con tres máscaras sobre los nodos del mismo grafo. La pérdida usa la de entrenamiento; la de validación sirve para elegir hiperparámetros y detener el entrenamiento; la de prueba se mira una sola vez. Cuidado con las fugas: una característica como "fracción de vecinas con fraude confirmado" puede filtrar etiquetas de prueba.</p></details>
+<details><summary>¿Sirve para cuentas nuevas?</summary><p>Sí. Los pesos no dependen del número de nodos; basta agregar la cuenta al grafo, recalcular \(\hat A\) y hacer un paso hacia adelante. Eso se llama uso inductivo. Cuando las cuentas de prueba ya estaban en el grafo durante el entrenamiento, como aquí, se llama transductivo.</p></details>
+<details><summary>¿Y si quiero clasificar grafos completos, no nodos?</summary><p>Se agrega un paso de lectura (<i>readout</i>): después de las capas, las filas de todos los nodos de un grafo se resumen en un vector, por ejemplo con el promedio. Ahí sí hay muchos ejemplos independientes (los grafos), lotes de grafos y una pérdida por grafo.</p></details>
+<details><summary>¿Por qué mi pérdida baja y la exactitud en prueba no sube?</summary><p>Con pocas etiquetas es fácil memorizarlas. Se ve aquí con "Sin grafo": pérdida casi cero y dos cuentas mal. Los remedios habituales son <i>dropout</i>, decaimiento de pesos, detención temprana con la máscara de validación y, sobre todo, verificar que el grafo aporta información para la tarea.</p></details>
+<details><summary>En fraude real casi todas las cuentas son legítimas. ¿Qué cambia?</summary><p>El ciclo de entrenamiento no cambia. Cambian la pérdida, que suele ponderar más la clase rara, y la evaluación: la exactitud deja de servir y se usan precisión, exhaustividad o la precisión entre las primeras \(k\) cuentas del orden de revisión.</p></details>
+<details><summary>¿Qué cambia con GAT?</summary><p>En GCN el peso de la vecina \(u\) para la cuenta \(v\) es el número fijo \(\hat A_{vu}\). En GAT ese peso es \(\alpha_{vu}\), calculado por una función con parámetros a partir de las características de \(u\) y \(v\) y normalizado con un softmax sobre las vecinas. En el paso hacia atrás el gradiente también pasa por \(\alpha\).</p></details>
+</section>
+<div class="navfoot"><button id="prev2">← Anterior</button><button id="next2" class="primary">Siguiente →</button></div>
+</main>
+</div>
+
+<script>
+//<core>
+const N = 8;
+const EDGES = [[0,1],[0,2],[1,2],[1,3],[2,3],[3,4],[4,5],[4,6],[5,6],[5,7],[6,7]];
+const X = [[1.0,0.1],[0.9,0.3],[0.3,0.8],[0.7,0.4],[0.4,0.7],[0.8,0.3],[0.2,0.9],[0.1,1.0]];
+const Y = [0,0,0,0,1,1,1,1];
+const HID = 3, NC = 2;
+const zeros = (r, c) => Array.from({length: r}, () => new Array(c).fill(0));
+const T = A => A[0].map((_, j) => A.map(r => r[j]));
+function matmul(A, B) {
+  const R = zeros(A.length, B[0].length);
+  for (let i = 0; i < A.length; i++) for (let k = 0; k < B.length; k++) { const a = A[i][k]; if (a !== 0) for (let j = 0; j < B[0].length; j++) R[i][j] += a * B[k][j]; }
+  return R;
+}
+function adjacency() { const A = zeros(N, N); for (const [u, v] of EDGES) { A[u][v] = 1; A[v][u] = 1; } return A; }
+function normAdj(useGraph) {
+  const S = zeros(N, N);
+  if (!useGraph) { for (let i = 0; i < N; i++) S[i][i] = 1; return S; }
+  const A = adjacency(); for (let i = 0; i < N; i++) A[i][i] = 1;
+  const d = A.map(r => r.reduce((a, b) => a + b, 0));
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) S[i][j] = A[i][j] / Math.sqrt(d[i] * d[j]);
+  return S;
+}
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function initW(seed) {
+  const r = rng(seed), g = (i, o) => { const a = Math.sqrt(6 / (i + o)); return Array.from({length: i}, () => Array.from({length: o}, () => (2 * r() - 1) * a)); };
+  return {W1: g(2, HID), W2: g(HID, NC)};
+}
+function forward(S, W) {
+  const A1 = matmul(S, X), Z1 = matmul(A1, W.W1), H1 = Z1.map(r => r.map(v => Math.tanh(v)));
+  const A2 = matmul(S, H1), Z = matmul(A2, W.W2);
+  const P = Z.map(r => { const m = Math.max(...r), e = r.map(v => Math.exp(v - m)), s = e.reduce((a, b) => a + b, 0); return e.map(v => v / s); });
+  return {A1, Z1, H1, A2, Z, P};
+}
+function lossOf(P, mask) { const idx = mask.map((m, i) => m ? i : -1).filter(i => i >= 0); if (!idx.length) return null; return -idx.reduce((a, i) => a + Math.log(P[i][Y[i]]), 0) / idx.length; }
+function backward(S, f, W, mask) {
+  const m = mask.filter(Boolean).length, G = zeros(N, NC);
+  if (m) for (let i = 0; i < N; i++) if (mask[i]) for (let k = 0; k < NC; k++) G[i][k] = (f.P[i][k] - (Y[i] === k ? 1 : 0)) / m;
+  const gW2 = matmul(T(f.A2), G), dH1 = matmul(matmul(T(S), G), T(W.W2));
+  const dZ1 = dH1.map((r, i) => r.map((v, j) => v * (1 - f.H1[i][j] * f.H1[i][j]))), gW1 = matmul(T(f.A1), dZ1);
+  return {G, gW2, dH1, dZ1, gW1};
+}
+function sgd(W, g, lr) { for (const [w, d] of [[W.W1, g.gW1], [W.W2, g.gW2]]) for (let i = 0; i < w.length; i++) for (let j = 0; j < w[0].length; j++) w[i][j] -= lr * d[i][j]; }
+//</core>
+
+const POS = [[50,160],[130,70],[130,250],[220,160],[300,160],[390,70],[390,250],[470,160]];
+const CLS = ["legítima", "fraude"];
+const $ = id => document.getElementById(id);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const panels = [...document.querySelectorAll(".panel")];
+const st = {seed: 7, W: initW(7), mask: [true,false,false,false,false,false,false,true], mode: "gcn", epoch: 0, hist: [], timer: null, sel: 2, panel: 0};
+let S = normAdj(true), F = null, B = null;
+
+const hex = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+const mix = p => { const a = hex(css("--c0")), b = hex(css("--c1")); return "rgb(" + a.map((v, i) => Math.round(v + (b[i] - v) * p)).join(",") + ")"; };
+const f2 = v => (Math.abs(v) < 0.005 ? 0 : v).toFixed(2), f3 = v => v.toFixed(3);
+
+function matrix(title, M, o = {}) {
+  const mx = Math.max(1e-9, ...M.flat().map(Math.abs)), pos = css("--pos"), neg = css("--neg");
+  let h = '<div class="mat"><div class="cap">' + title + "</div><table>";
+  if (o.cols) h += "<tr>" + (o.rows === false ? "" : "<th></th>") + o.cols.map(c => "<th>" + c + "</th>").join("") + "</tr>";
+  M.forEach((r, i) => {
+    const cls = [(o.rows !== false && st.sel === i ? "sel" : ""), (o.rows !== false && st.mask[i] ? "lab" : "")].join(" ").trim();
+    h += '<tr class="' + cls + '">' + (o.rows === false ? "" : "<th>" + i + (st.mask[i] ? "★" : "") + "</th>");
+    h += r.map(v => '<td style="background:rgba(' + (v >= 0 ? pos : neg) + "," + (0.55 * Math.abs(v) / mx).toFixed(3) + ')">' + (o.fmt || f2)(v) + "</td>").join("") + "</tr>";
+  });
+  return h + "</table></div>";
+}
+
+function distances(c) {
+  const A = adjacency(), d = new Array(N).fill(Infinity); d[c] = 0; const q = [c];
+  while (q.length) { const u = q.shift(); for (let v = 0; v < N; v++) if (A[u][v] && d[v] === Infinity) { d[v] = d[u] + 1; q.push(v); } }
+  return d;
+}
+
+const LEGEND = {
+  problem: "Azul: revisada y legítima. Naranja: revisada y con fraude. Gris con ?: sin revisar.",
+  pred: "Relleno y número: probabilidad de fraude según el modelo. Borde: la verdad. ★: cuenta revisada. ✕: predicción equivocada.",
+  data: "Junto a cada cuenta: (regularidad, prisa). Color: la verdad. ★: cuenta revisada.",
+  forward: "Líneas gruesas: cuentas que le pasan información a la cuenta elegida, con su peso Â. Número en el nodo: probabilidad de fraude.",
+  loss: "Solo las cuentas con ★ entran a la pérdida. Las demás están atenuadas.",
+  grad: "Halo: tamaño del gradiente que llega a la fila de esa cuenta en H⁽¹⁾. Sin halo, gradiente cero.",
+  hops: "Verde: la cuenta del centro. Gris oscuro: dentro del campo receptivo. Número: distancia al centro."};
+
+function drawGraph() {
+  const view = panels[st.panel].dataset.view, v = st.sel, k = +$("kHops").value, dist = distances(v);
+  if (view.startsWith("bneck")) return drawBneck(view);
+  const pred = F.P.map(r => r[1] > 0.5 ? 1 : 0), col = c => css(c ? "--c1" : "--c0");
+  const gn = B.dH1.map(r => Math.hypot(...r)), gmax = Math.max(1e-12, ...gn);
+  let h = "";
+  for (const [a, b] of EDGES) {
+    let w = 2, op = 0.7, c = css("--soft"), dash = "", lab = "";
+    if (view !== "problem" && view !== "data" && view !== "hops" && st.mode === "mlp") { op = 0.2; dash = ' stroke-dasharray="4 4"'; }
+    if (view === "forward" && st.mode === "gcn" && (a === v || b === v)) { w = 5; op = 1; c = css("--accent"); lab = S[a][b].toFixed(2); }
+    if (view === "hops") { const inside = dist[a] <= k && dist[b] <= k; op = inside ? 0.9 : 0.25; w = inside ? 3 : 1.5; }
+    h += '<line x1="' + POS[a][0] + '" y1="' + POS[a][1] + '" x2="' + POS[b][0] + '" y2="' + POS[b][1] + '" stroke="' + c + '" stroke-width="' + w + '" opacity="' + op + '"' + dash + "/>";
+    if (lab) { const mx = (POS[a][0] + POS[b][0]) / 2, my = (POS[a][1] + POS[b][1]) / 2; h += '<rect x="' + (mx - 17) + '" y="' + (my - 10) + '" width="34" height="19" rx="4" fill="' + css("--card") + '" stroke="' + css("--accent") + '"/><text x="' + mx + '" y="' + (my + 4) + '" text-anchor="middle" font-size="12" font-weight="700">' + lab + "</text>"; }
+  }
+  for (let i = 0; i < N; i++) {
+    const [x, y] = POS[i], below = y > 200;
+    let fill = mix(F.P[i][1]), stroke = col(Y[i]), sw = st.mask[i] ? 7 : 3, dash = !st.mask[i], text = F.P[i][1].toFixed(2), op = 1, tcol = "#fff";
+    let tag = i + (st.mask[i] ? " ★" : "") + (pred[i] === Y[i] ? "" : " ✕");
+    if (view === "problem") { const known = st.mask[i]; fill = known ? col(Y[i]) : css("--unk"); stroke = fill; text = known ? CLS[Y[i]].slice(0, 5) + "." : "?"; tag = "cuenta " + i + (known ? " ★" : ""); dash = false; sw = 3; }
+    if (view === "data") { fill = col(Y[i]); stroke = fill; sw = 3; dash = false; text = i; tag = "(" + X[i][0] + ", " + X[i][1] + ")" + (st.mask[i] ? " ★" : ""); }
+    if (view === "loss" && !st.mask[i]) op = 0.3;
+    if (view === "hops") { const inside = dist[i] <= k; fill = i === v ? css("--accent") : inside ? css("--soft") : css("--card"); stroke = css("--soft"); sw = 2; dash = false; text = dist[i]; tcol = inside ? "#fff" : css("--ink"); tag = "" + i; }
+    h += '<g class="node" data-i="' + i + '" opacity="' + op + '">';
+    if (view === "grad" && gn[i] > 1e-12) h += '<circle cx="' + x + '" cy="' + y + '" r="' + (27 + 20 * gn[i] / gmax) + '" fill="' + css("--accent") + '" opacity="0.35"/>';
+    if (i === v && view !== "problem") h += '<circle cx="' + x + '" cy="' + y + '" r="31" fill="none" stroke="' + css("--accent") + '" stroke-width="2.5"/>';
+    h += '<circle cx="' + x + '" cy="' + y + '" r="24" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '"' + (dash ? ' stroke-dasharray="5 4"' : "") + "/>";
+    h += '<text x="' + x + '" y="' + (y + 5) + '" text-anchor="middle" font-size="' + (view === "problem" && st.mask[i] ? 10 : 14) + '" font-weight="700" style="fill:' + tcol + '">' + text + "</text>";
+    h += '<text x="' + x + '" y="' + (below ? y + 48 : y - 36) + '" text-anchor="middle" font-size="13">' + tag + "</text>";
+    if (view === "forward" && i === v) h += '<text x="' + (x < 260 ? x - 36 : x + 36) + '" y="' + (y + (below ? 30 : -24)) + '" text-anchor="' + (x < 260 ? "end" : "start") + '" font-size="12" font-weight="700" style="fill:' + css("--accent") + '">propia ' + S[v][v].toFixed(2) + "</text>";
+    h += "</g>";
+  }
+  $("g").innerHTML = h;
+  $("legend").textContent = LEGEND[view];
+}
+
+function compute() { S = normAdj(st.mode === "gcn"); F = forward(S, st.W); B = backward(S, F, st.W, st.mask); }
+
+function render() {
+  compute();
+  const pred = F.P.map(r => r[1] > 0.5 ? 1 : 0), ok = pred.map((p, i) => p === Y[i]), L = lossOf(F.P, st.mask), lab = st.mask.filter(Boolean).length, v = st.sel;
+  const isBn = panels[st.panel].dataset.view.startsWith("bneck");
+  $("trainUI").hidden = isBn; $("bneckUI").hidden = !isBn;
+  drawGraph();
+  renderBneck();
+  $("ficha").innerHTML = "<b>Cuenta " + v + "</b> · regularidad " + f2(X[v][0]) + " · prisa " + f2(X[v][1]) + " · " + (st.mask[v] ? "revisada (" + CLS[Y[v]] + ")" : "sin revisar") + " · p(fraude) = " + F.P[v][1].toFixed(2);
+  $("bLabel").textContent = st.mask[v] ? "Quitarle la etiqueta" : "Revisarla (darle etiqueta)";
+  $("sEpoch").textContent = st.epoch;
+  $("sLoss").textContent = L === null ? "–" : L.toFixed(3);
+  $("sAccL").textContent = lab ? ok.filter((x, i) => x && st.mask[i]).length + " / " + lab : "–";
+  $("sAccU").textContent = N - lab ? ok.filter((x, i) => x && !st.mask[i]).length + " / " + (N - lab) : "–";
+  const wrong = ok.map((x, i) => x ? -1 : i).filter(i => i >= 0);
+  $("msg").innerHTML = L === null ? '<span class="warn">Ninguna cuenta tiene etiqueta: no hay pérdida, el gradiente es cero y los pesos no cambian.</span>'
+    : (wrong.length ? "Cuentas mal clasificadas: " + wrong.join(", ") + "." : "Las ocho cuentas están bien clasificadas.") + (st.mode === "mlp" ? " Sin grafo, cada cuenta se predice solo con sus dos números." : "");
+  const Hh = st.hist, mx = Math.max(0.8, ...Hh), n = Math.max(30, Hh.length);
+  let c = '<line x1="30" y1="92" x2="432" y2="92" stroke="' + css("--line") + '"/><line x1="30" y1="6" x2="30" y2="92" stroke="' + css("--line") + '"/>';
+  c += '<text x="26" y="12" font-size="10" text-anchor="end">' + mx.toFixed(1) + '</text><text x="26" y="95" font-size="10" text-anchor="end">0</text><text x="231" y="107" font-size="10" text-anchor="middle">pérdida por época</text>';
+  if (Hh.length) c += '<polyline fill="none" stroke="' + css("--accent") + '" stroke-width="2" points="' + Hh.map((y, i) => (30 + 402 * i / (n - 1)).toFixed(1) + "," + (92 - 86 * Math.min(y, mx) / mx).toFixed(1)).join(" ") + '"/>';
+  $("curve").innerHTML = c;
+
+  $("tblProblem").innerHTML = '<table class="cmp"><tr><th>Cuenta</th><th>Regularidad</th><th>Prisa</th><th>Transfiere con</th><th>Estado</th></tr>' + X.map((r, i) =>
+    '<tr class="' + (i === v ? "sel" : "") + '"><td>' + i + "</td><td>" + f2(r[0]) + "</td><td>" + f2(r[1]) + "</td><td>" + adjacency()[i].map((a, u) => a ? u : -1).filter(u => u >= 0).join(", ") + "</td><td>" + (st.mask[i] ? "revisada: " + CLS[Y[i]] : "sin revisar") + "</td></tr>").join("") + "</table>";
+  $("mData").innerHTML = matrix("X <small>(regularidad, prisa)</small>", X) + matrix("y", Y.map((y, i) => [st.mask[i] ? y : NaN]), {fmt: x => isNaN(x) ? "?" : x}) + matrix("Â <small>(fila = quién recibe)</small>", normAdj(true), {cols: [0, 1, 2, 3, 4, 5, 6, 7]});
+  const W12 = matrix("W⁽¹⁾ <small>2×3</small>", st.W.W1, {rows: false, fmt: f3}) + matrix("W⁽²⁾ <small>3×2</small>", st.W.W2, {rows: false, fmt: f3});
+  $("mW0").innerHTML = W12; $("mW").innerHTML = W12;
+  const nb = S[v].map((a, u) => a > 0 ? u : -1).filter(u => u >= 0);
+  $("nodeSum").innerHTML = "<b>Cuenta " + v + "</b>, primera agregación:<br>(ÂX)<sub>" + v + "</sub> = " + nb.map(u => S[v][u].toFixed(2) + "·x<sub>" + u + "</sub>").join(" + ") + "<br>= " +
+    nb.map(u => S[v][u].toFixed(2) + "·(" + X[u].map(f2).join(", ") + ")").join(" + ") + " = <b>(" + F.A1[v].map(f2).join(", ") + ")</b>" +
+    "<br>Sus propios números eran (" + X[v].map(f2).join(", ") + "). Después de mezclarse con sus vecinas, " + (F.A1[v][0] > F.A1[v][1] ? "pesa más la regularidad" : "pesa más la prisa") + ".";
+  $("mF1").innerHTML = matrix("X", X) + matrix("Â X", F.A1);
+  $("mF2").innerHTML = matrix("W⁽¹⁾", st.W.W1, {rows: false}) + matrix("H⁽¹⁾", F.H1);
+  $("mF3").innerHTML = matrix("Â H⁽¹⁾", F.A2) + matrix("W⁽²⁾", st.W.W2, {rows: false}) + matrix("Z <small>logits</small>", F.Z, {cols: ["legítima", "fraude"]});
+  $("mF4").innerHTML = matrix("P <small>probabilidades</small>", F.P, {cols: ["legítima", "fraude"]});
+  const idx = st.mask.map((m, i) => m ? i : -1).filter(i => i >= 0);
+  $("lossTerms").innerHTML = idx.length ? "Cuentas revisadas: " + idx.join(", ") + " (m = " + idx.length + ")<br>" + idx.map(i => "cuenta " + i + " (" + CLS[Y[i]] + "): −log P<sub>" + i + "," + Y[i] + "</sub> = −log(" + F.P[i][Y[i]].toFixed(3) + ") = " + (-Math.log(F.P[i][Y[i]])).toFixed(3)).join("<br>") +
+    "<br><b>𝓛 = (" + idx.map(i => (-Math.log(F.P[i][Y[i]])).toFixed(3)).join(" + ") + ") / " + idx.length + " = " + L.toFixed(3) + "</b>" : '<span class="warn">No hay cuentas con etiqueta. La pérdida no está definida.</span>';
+  $("mB1").innerHTML = matrix("P − Y", F.P.map((r, i) => r.map((p, k) => p - (Y[i] === k ? 1 : 0)))) + matrix("G = M(P − Y)/m", B.G);
+  $("mB2").innerHTML = matrix("∂𝓛/∂W⁽²⁾", B.gW2, {rows: false, fmt: f3});
+  $("mB3").innerHTML = matrix("∂𝓛/∂H⁽¹⁾", B.dH1, {fmt: f3});
+  $("mB4").innerHTML = matrix("∂𝓛/∂W⁽¹⁾", B.gW1, {rows: false, fmt: f3});
+  const rank = F.P.map((r, i) => [i, r[1]]).filter(([i]) => !st.mask[i]).sort((a, b) => b[1] - a[1]);
+  $("ranking").innerHTML = rank.length ? '<table class="cmp"><tr><th>Orden</th><th>Cuenta</th><th>p(fraude)</th><th>Verdad (solo en este ejemplo)</th></tr>' + rank.map(([i, p], k) => '<tr class="' + (i === v ? "sel" : "") + '"><td>' + (k + 1) + "</td><td>" + i + "</td><td>" + p.toFixed(2) + "</td><td>" + CLS[Y[i]] + "</td></tr>").join("") + "</table>" : "<p>Todas las cuentas están revisadas.</p>";
+  const k = +$("kHops").value, dist = distances(v), A = adjacency();
+  $("kVal").textContent = k;
+  let walks = new Array(N).fill(0); walks[v] = 1; const counts = [1];
+  for (let s = 1; s <= 5; s++) { const nw = new Array(N).fill(0); for (let a = 0; a < N; a++) for (let b = 0; b < N; b++) if (A[a][b]) nw[b] += walks[a]; walks = nw; counts.push(walks.reduce((a, b) => a + b, 0)); }
+  $("hopsOut").innerHTML = "<b>Centro: cuenta " + v + ". Con " + k + " capa" + (k === 1 ? "" : "s") + ":</b><br>cuentas en el campo receptivo: " + dist.filter(d => d <= k).length + " de " + N +
+    "<br>caminos de longitud " + k + " que llegan a la cuenta: <b>" + counts[k] + "</b><br>por longitud: " + counts.map((x, i) => "k=" + i + ": " + x).join(", ") +
+    "<br>Los caminos crecen mucho más rápido que las cuentas, y todos deben caber en un vector de " + HID + " números.";
+}
+
+function step() {
+  compute();
+  const L = lossOf(F.P, st.mask);
+  if (L !== null) { if (!st.hist.length) st.hist.push(L); sgd(st.W, B, +$("lr").value); st.epoch++; compute(); st.hist.push(lossOf(F.P, st.mask)); }
+  render();
+}
+function stop() { clearInterval(st.timer); st.timer = null; $("bRun").textContent = "Entrenar"; }
+function reset(newSeed) { stop(); if (newSeed) st.seed++; st.W = initW(st.seed); st.epoch = 0; st.hist = []; render(); }
+function go(p) {
+  st.panel = Math.max(0, Math.min(panels.length - 1, p));
+  panels.forEach((el, i) => el.classList.toggle("on", i === st.panel));
+  [...$("chips").children].forEach((c, i) => c.setAttribute("aria-current", i === st.panel));
+  $("chips").children[st.panel].scrollIntoView({block: "nearest", inline: "nearest"});
+  for (const id of ["prev", "prev2"]) $(id).disabled = st.panel === 0;
+  for (const id of ["next", "next2"]) $(id).disabled = st.panel === panels.length - 1;
+  try { history.replaceState(null, "", "#" + (st.panel + 1)); } catch (e) {}
+  render();
+  if (window.scrollY > 120) window.scrollTo({top: 0});
+}
+
+$("chips").innerHTML = panels.map((p, i) => '<button class="chip" data-p="' + i + '"><b>' + (i + 1) + "</b>" + p.dataset.t + "</button>").join("");
+$("chips").onclick = e => { const c = e.target.closest(".chip"); if (c) go(+c.dataset.p); };
+for (const id of ["prev", "prev2"]) $(id).onclick = () => go(st.panel - 1);
+for (const id of ["next", "next2"]) $(id).onclick = () => go(st.panel + 1);
+document.addEventListener("keydown", e => { if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return; if (e.key === "ArrowRight") go(st.panel + 1); if (e.key === "ArrowLeft") go(st.panel - 1); });
+$("bStep").onclick = () => { stop(); step(); };
+$("bRun").onclick = () => { if (st.timer) return stop(); $("bRun").textContent = "Pausa"; st.timer = setInterval(() => { step(); if (st.epoch >= 400 || lossOf(F.P, st.mask) === null) stop(); }, 60); };
+$("bReset").onclick = () => reset(true);
+$("selMode").onchange = e => { st.mode = e.target.value; reset(false); };
+$("lr").oninput = e => { $("lrVal").textContent = (+e.target.value).toFixed(2); };
+$("g").onclick = e => { const g = e.target.closest(".node"); if (!g) return; st.sel = +g.dataset.i; render(); };
+$("bLabel").onclick = () => { st.mask[st.sel] = !st.mask[st.sel]; st.hist = []; render(); };
+$("kHops").oninput = render;
+$("bCheck").onclick = () => {
+  compute();
+  if (lossOf(F.P, st.mask) === null) { $("checkOut").innerHTML = '<span class="warn">Sin cuentas etiquetadas no hay pérdida que derivar.</span>'; return; }
+  const which = Math.random() < 0.5 ? "W1" : "W2", w = st.W[which], i = Math.floor(Math.random() * w.length), j = Math.floor(Math.random() * w[0].length), eps = 1e-5, old = w[i][j];
+  w[i][j] = old + eps; const Lp = lossOf(forward(S, st.W).P, st.mask); w[i][j] = old - eps; const Lm = lossOf(forward(S, st.W).P, st.mask); w[i][j] = old;
+  const num = (Lp - Lm) / (2 * eps), ana = (which === "W1" ? B.gW1 : B.gW2)[i][j];
+  $("checkOut").innerHTML = "Peso W<sup>(" + which[1] + ")</sup><sub>" + (i + 1) + "," + (j + 1) + "</sub> = " + old.toFixed(4) + "<br>fórmula del panel: " + ana.toFixed(8) + "<br>diferencias finitas (ε = 10⁻⁵): " + num.toFixed(8) +
+    "<br>diferencia: " + Math.abs(num - ana).toExponential(2) + (Math.abs(num - ana) < 1e-6 ? ' <b style="color:var(--ok)">coinciden</b>' : ' <span class="warn">no coinciden</span>');
+};
+
+// ── bottleneck panels ───────────────────────────────────────────────────────
+const bn = {K: 4, M: 3, d: 2, perm: [2, 0, 3, 1], q: 1, beta: 4};
+function bnShufflePerm() { const a = Array.from({length: bn.K}, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } bn.perm = a; }
+function bnWeights() { const e = bn.perm.map(r => Math.exp(bn.beta * (r === bn.q ? 1 : 0))), t = e.reduce((a, b) => a + b, 0); return e.map(x => x / t); }
+function drawBneck(view) {
+  const sizes = [bn.K, ...new Array(bn.d).fill(bn.M), 1], cols = sizes.map((n, c) => {
+    const x = 50 + 420 * c / (sizes.length - 1), gap = Math.min(62, 250 / Math.max(1, n - 1));
+    return Array.from({length: n}, (_, i) => [x, 165 + (i - (n - 1) / 2) * gap]);
+  });
+  const wa = view === "bneckwa", w = bnWeights(), ans = bn.perm.indexOf(bn.q), [tx, ty] = cols[cols.length - 1][0];
+  let h = "";
+  for (let c = 0; c + 1 < cols.length; c++) for (const a of cols[c]) for (const b of cols[c + 1])
+    h += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="' + css("--soft") + '" stroke-width="1.2" opacity="' + (wa ? 0.25 : 0.6) + '"/>';
+  if (wa) cols[0].forEach(([sx, sy], i) => {
+    const cy = sy <= 165 ? Math.max(6, sy - 115) : Math.min(324, sy + 115);
+    h += '<path d="M' + tx + " " + ty + " Q" + (sx + tx) / 2 + " " + cy + " " + sx + " " + sy + '" fill="none" stroke="' + css("--accent") + '" stroke-width="' + (1 + 9 * w[i]).toFixed(1) + '" opacity="' + (0.35 + 0.65 * w[i]).toFixed(2) + '"/>';
+  });
+  cols.forEach((col, c) => col.forEach(([x, y], i) => {
+    const src = c === 0, tgt = c === cols.length - 1;
+    const fill = tgt ? css("--accent") : src ? (wa && i === ans ? css("--c1") : css("--c0")) : css("--card");
+    h += '<circle cx="' + x + '" cy="' + y + '" r="19" fill="' + fill + '" stroke="' + css("--soft") + '" stroke-width="2"/>';
+    h += '<text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" font-size="11" font-weight="700" style="fill:' + (src || tgt ? "#fff" : css("--ink")) + '">' + (src ? "R" + (bn.perm[i] + 1) : tgt ? "¿R" + (bn.q + 1) + "?" : "Σ") + "</text>";
+    if (src) h += '<text x="' + (x - 25) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11">O' + (i + 1) + "</text>";
+  }));
+  const names = ["orígenes", ...Array.from({length: bn.d}, (_, i) => "capa " + (i + 1)), "destino"];
+  cols.forEach((col, c) => { h += '<text x="' + col[0][0] + '" y="326" text-anchor="middle" font-size="11" style="fill:' + css("--soft") + '">' + names[c] + "</text>"; });
+  $("g").innerHTML = h;
+  $("legend").textContent = wa ? "Arcos: atención directa del destino a los orígenes, en un solo paso. Naranja: el origen que usó la referencia consultada."
+    : "Azul: orígenes, con su referencia. Σ: cuentas intermedias, que solo suman lo que reciben. Verde: el destino, con su consulta.";
+}
+function renderBneck() {
+  const K = bn.K, w = bnWeights(), ans = bn.perm.indexOf(bn.q), walks = K * Math.pow(bn.M, bn.d), W = +$("bnW").value, psi = Math.log2(walks) - Math.log2(W);
+  for (const [id, v] of [["bnKv", K], ["bnMv", bn.M], ["bnDv", bn.d]]) $(id).textContent = v;
+  $("bnQ1").textContent = $("bnQ2").textContent = "R" + (bn.q + 1);
+  const head = "<tr><th>Origen</th><th>Referencia</th>" + Array.from({length: K}, (_, i) => "<th>R" + (i + 1) + "</th>").join("") + Array.from({length: K}, (_, i) => "<th>O" + (i + 1) + "</th>").join("") + "</tr>";
+  const rows = bn.perm.map((r, s) => "<tr><td>O" + (s + 1) + "</td><td>R" + (r + 1) + "</td>" + Array.from({length: K}, (_, i) => "<td>" + (i === r ? 1 : 0) + "</td>").join("") + Array.from({length: K}, (_, i) => "<td>" + (i === s ? 1 : 0) + "</td>").join("") + "</tr>").join("");
+  $("bnTable").innerHTML = '<table class="cmp">' + head + rows + '<tr class="sel"><td colspan="2">Suma que recibe cada cuenta intermedia</td>' + "<td>1</td>".repeat(2 * K) + "</tr></table>";
+  $("bnPsi").innerHTML = "caminos que llegan al destino = K · M<sup>d</sup> = " + K + " · " + bn.M + "<sup>" + bn.d + "</sup> = <b>" + walks + "</b><br>log₂(" + walks + ") = " + Math.log2(walks).toFixed(2) + " bits, capacidad log₂(" + W + ") = " + Math.log2(W).toFixed(2) + " bits<br><b>Ψ = " + psi.toFixed(2) + " bits</b>" +
+    (psi > 0 ? ": llega más de lo que cabe." : ": cabe.") + "<br>pares del soporte que usa Walk Attention para el destino: " + K + " (uno por origen, cada uno unido por " + Math.pow(bn.M, bn.d) + " caminos)";
+  $("bnBetaVal").textContent = bn.beta.toFixed(1);
+  const best = Math.max(...w), tie = w.filter(x => Math.abs(x - best) < 1e-12).length > 1;
+  $("bnWA").innerHTML = '<table class="cmp"><tr><th>Origen</th><th>Referencia (llave)</th><th>Puntaje</th><th>Peso de atención</th><th></th></tr>' + bn.perm.map((r, s) =>
+    '<tr class="' + (s === ans ? "sel" : "") + '"><td>O' + (s + 1) + "</td><td>R" + (r + 1) + "</td><td>" + (r === bn.q ? bn.beta.toFixed(1) : "0") + "</td><td>" + w[s].toFixed(3) + '</td><td style="width:40%"><div style="height:12px;border-radius:6px;background:var(--accent);width:' + (100 * w[s]).toFixed(1) + '%"></div></td></tr>').join("") + "</table>" +
+    '<div class="mono">peso del origen correcto = e<sup>β</sup> / (e<sup>β</sup> + K − 1) = ' + w[ans].toFixed(3) + "<br>" + (tie ? '<span class="warn">Todos pesan igual: no se puede elegir. Probabilidad de acertar: 1/' + K + ".</span>" : "<b>Respuesta: O" + (ans + 1) + "</b>, la cuenta que usó R" + (bn.q + 1) + ". Correcta.") + "</div>";
+  $("bnMsg").textContent = "Paso de mensajes necesita " + (bn.d + 1) + " capas para que algo de los orígenes llegue al destino. Walk Attention usa una sola capa, en el rango k = " + (bn.d + 1) + ".";
+}
+for (const [id, key] of [["bnK", "K"], ["bnM", "M"], ["bnD", "d"]]) $(id).oninput = e => { bn[key] = +e.target.value; if (key === "K") { bnShufflePerm(); bn.q = Math.min(bn.q, bn.K - 1); } render(); };
+$("bnShuffle").onclick = () => { bnShufflePerm(); render(); };
+$("bnNewQ").onclick = () => { bn.q = (bn.q + 1) % bn.K; render(); };
+$("bnBeta").oninput = e => { bn.beta = +e.target.value; render(); };
+$("bnW").onchange = render;
+compute();
+go((parseInt(location.hash.slice(1)) || 1) - 1);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+</script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]})"></script>
+</body>
+</html>
